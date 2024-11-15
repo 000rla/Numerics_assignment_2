@@ -23,6 +23,7 @@ def import_grid(grid_type='esw',res='100'):
 
 def model():
     """Equations
+        diffusion equation eg
         The minimal model would solve for the pollutant as a scalar field indicating the pollutant concentration normalized to one over Southampton. 
         This could be done using a time independent or time dependent model. The velocity field could be imposed (in the simplest model) or solved for (much more complex). 
         A reasonable approximation to the wind conditions that day would be a constant 10 metre per second wind to the north.
