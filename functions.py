@@ -11,6 +11,14 @@ import numpy as np
 UoS = [442365, 115483]
 UoR = [473993, 171625]
 
+def source_function(x):
+    # return 2*x[0]*(x[0]-2)*(3*x[1]**2-3*x[1]+.5)+x[1]**2*(x[1]-1)**2
+    return 1
+
+def psi_analytical(x):
+    # return x[0]*(1-x[0]/2)+x[1]**2*(1-x[1])**2
+    return x[0]*(1-x[0]/2)
+
 def shape_functions(xi):
     return np.array([1-xi[0]-xi[1], xi[0], xi[1]])
 
@@ -103,7 +111,7 @@ def generate_2d_grid(Nx):
                                     i+(j+1)*Nnodes)
     return nodes, IEN, ID, boundaries
 
-def solver(S):
+def solver():
     #loading data    
     nodes = np.loadtxt('data/esw_nodes_100k.txt')
     
@@ -140,11 +148,11 @@ def solver(S):
     # Global stiffness matrix and force vector
     K = np.zeros((N_equations, N_equations))
     F = np.zeros((N_equations,))
-    
+
     # Loop over elements
     for e in range(N_elements):
         k_e = stiffness_2d(nodes[:,IEN[e,:]])
-        f_e = force_2d(nodes[:,IEN[e,:]], S)
+        f_e = force_2d(nodes[:,IEN[e,:]], source_function)
         for a in range(3):
             A = LM[a, e]
             for b in range(3):
@@ -165,6 +173,8 @@ def solver(S):
     plt.colorbar()
     plt.axis('equal')
     plt.show()
+
+    plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes)
 
     return Psi_A
 
