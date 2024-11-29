@@ -1,3 +1,3 @@
-data
-/exercises.ipynb
-__pycache__
+data/
+exercises.ipynb
+__pycache__/
