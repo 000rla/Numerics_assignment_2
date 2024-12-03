@@ -1,23 +1,6 @@
-"""Choose a way of modelling the pollutant spread.
-    Choose a method to numerically solve your model on an unstructured grid.
-    Write a code to solve the model using the chosen method.
-    Find how much of the pollutant passed over the University of Reading, using some of the provided grids.
-    Write a report of no more than ten pages (not including references and appendices) explaining your results and their accuracy, both in terms of modelling and numerics."""
-
 import matplotlib.pyplot as plt
 import numpy as np
-
-#coordinates
-UoS = [442365, 115483]
-UoR = [473993, 171625]
-
-def source_function(x):
-    # return 2*x[0]*(x[0]-2)*(3*x[1]**2-3*x[1]+.5)+x[1]**2*(x[1]-1)**2
-    return 1
-
-def psi_analytical(x):
-    # return x[0]*(1-x[0]/2)+x[1]**2*(1-x[1])**2
-    return x[0]*(1-x[0]/2)
+from scipy import sparse as sp
 
 def shape_functions(xi):
     return np.array([1-xi[0]-xi[1], xi[0], xi[1]])
@@ -71,6 +54,16 @@ def stiffness_2d(nodes):
             k[i,j] = integrate_phi(phi, nodes)
     return k
 
+def stiffness_advection(nodes):
+    div = div_x_shape_functions(nodes)
+    k = np.zeros([3,3])
+    for i in range(3):
+        for j in range(3):
+            psi=lambda xi: abs(det_J(jacobian(nodes)))*div[1,i]*shape_functions(xi)[j]
+            k[i,j] += integrate_psi(psi)
+
+    return k
+
 def force_2d(nodes,S):
     xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
     detJ=abs(det_J(jacobian(nodes)))
@@ -111,48 +104,47 @@ def generate_2d_grid(Nx):
                                     i+(j+1)*Nnodes)
     return nodes, IEN, ID, boundaries
 
-def solver():
+def source_function(x):
+    mean=[442365, 115483] #UoS coords
+    std=1000
+    return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
+
+def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
     #loading data    
-    nodes = np.loadtxt('data/esw_nodes_100k.txt')
+    nodes = np.loadtxt('data/'+map+'_nodes_'+res+'k.txt')
     
-    IEN = np.loadtxt('data/esw_IEN_100k.txt', 
+    IEN = np.loadtxt('data/'+map+'_IEN_'+res+'k.txt', 
                     dtype=np.int64)
-    boundary_nodes = np.loadtxt('data/esw_bdry_100k.txt', 
+    boundary_nodes = np.loadtxt('data/'+map+'_bdry_'+res+'k.txt', 
                                 dtype=np.int64)
-    
-    #setting boundries
+    southern_boarder = np.where(nodes[boundary_nodes,1] <= 110000)[0]
+
     ID = np.zeros(len(nodes), dtype=np.int64)
-    boundaries = dict() # Will hold the boundary values
     n_eq = 0
     for nID in range(len(nodes)):
-        if (np.allclose(nodes[nID, 0], 0)):
+        if nID in southern_boarder:
             ID[nID] = -1
-            boundaries[nID] = 0 # Dirichlet BC, fixed BC
         else:
             ID[nID] = n_eq
             n_eq += 1
-            if ( (np.allclose(nodes[nID, 1], 0)) or (np.allclose(nodes[nID, 0], 1)) or (np.allclose(nodes[nID, 1], 1)) ):
-                boundaries[nID] = 0 # Neumann BC, fixed derivative of the BC
 
     N_equations = np.max(ID)+1
     N_elements = IEN.shape[0]
     N_nodes = nodes.shape[0]
     nodes=nodes.T
-
+    
     # Location matrix
     LM = np.zeros_like(IEN.T)
     for e in range(N_elements):
         for a in range(3):
             LM[a,e] = ID[IEN[e,a]]
-
     # Global stiffness matrix and force vector
-    K = np.zeros((N_equations, N_equations))
+    K = sp.lil_matrix((N_equations, N_equations))
     F = np.zeros((N_equations,))
-
     # Loop over elements
     for e in range(N_elements):
-        k_e = stiffness_2d(nodes[:,IEN[e,:]])
-        f_e = force_2d(nodes[:,IEN[e,:]], source_function)
+        k_e = D*stiffness_2d(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
+        f_e = force_2d(nodes[:,IEN[e,:]], S)
         for a in range(3):
             A = LM[a, e]
             for b in range(3):
@@ -162,19 +154,24 @@ def solver():
             if (A >= 0):
                 F[A] += f_e[a]
     # Solve
-    Psi_interior = np.linalg.solve(K, F)
+    K=sp.csr_matrix(K)
+    Psi_interior = sp.linalg.spsolve(K, F)
     Psi_A = np.zeros(N_nodes)
     for n in range(N_nodes):
         if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
             Psi_A[n] = Psi_interior[ID[n]]
 
+    plt.cla()
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
+    plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
+    plt.scatter(473993, 171625,c='k',marker='*', label='UoR')
     plt.title('finite element solver')
-    plt.colorbar()
+    # plt.colorbar()
     plt.axis('equal')
+    plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'_.pdf')
     plt.show()
 
-    plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes)
+    #plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes)
 
     return Psi_A
 
@@ -194,30 +191,7 @@ def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
     fig.colorbar(c1, ax=[ax[0], ax[1]])
     plt.show()
 
-
-    
-
-def model():
-    """Equations
-        diffusion equation eg
-        The minimal model would solve for the pollutant as a scalar field indicating the pollutant concentration normalized to one over Southampton. 
-        This could be done using a time independent or time dependent model. The velocity field could be imposed (in the simplest model) or solved for (much more complex). 
-        A reasonable approximation to the wind conditions that day would be a constant 10 metre per second wind to the north.
-
-        Source or boundary conditions
-        The pollutant was sourced by the fire at a very specific and narrow location. 
-        However, on all practical grids this source will be within a single element, and that element will be very close to the boundary. 
-        The pollutant can therefore be injected into the domain either using a localised source function (local in space for stationary models; 
-        for time dependent models, the fire lasted about 8 hours) or by setting Dirichlet boundary conditions over some relevant boundary nodes."""
-    
-    return None
-
-def method():
-    """In this section we have seen essentially three methods that would work on unstructured meshes;
-        1. time independent Galerkin finite element solutions of diffusion equations (advection terms can be added, with care);
-        2. time dependent Galerkin finite element solutions of advection equations (diffusion terms can be added, with care);
-        3. time dependent Discontinuous Galerkin finite element solutions of advection equations (adding diffusive terms requires careful work).
-        The choice of method should be linked to the model chosen.
-        Code from standard modules (eg numpy, scipy, quadpy) can be used, but full PDE solving packages (eg FEniCS, dedalus) cannot."""
-    
-    return None
+solver()
+solver(map='las',res='40')
+solver(u=0,D=1)
+solver(u=1,D=0)
