@@ -137,9 +137,10 @@ def stiffness_advection(nodes):
     """
     div = div_x_shape_functions(nodes)
     k = np.zeros([3,3])
+    detJ=det_J(jacobian(nodes))
     for i in range(3):
         for j in range(3):
-            psi=lambda xi: (det_J(jacobian(nodes)))*div[1,i]*shape_functions(xi)[j]
+            psi=lambda xi: detJ*shape_functions(xi)[i]*div[1,j]
             k[i,j] += integrate_psi(psi)
 
     return k
@@ -217,13 +218,13 @@ def source_function(x):
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
-def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
+def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
     """finds the finite elements solution.
 
     Args:
         S (function, optional): Source function for the pollutant. Defaults to source_function.
-        D (int, optional): Diffusion coefficent. Defaults to 1.
-        u (int, optional): Wind speed. Defaults to 1E-10.
+        D (int, optional): Diffusion coefficent. [m^2s^-1] Defaults to 1.
+        u (int, optional): Wind speed. [ms^-1] Defaults to 1E-10.
         map (str, optional): Chooses which map to solve over. Choose between 'esw' and 'lan'. Defaults to 'esw'.
         res (str, optional): Chooses resolution to solve over. Defaults to '100'.
             Choose between '6_25', '12_5', '25', '50' or '100' for map = 'ews' or '1_25', '2_5', '5', '10', '20', '40' for map = 'las'.  
@@ -282,12 +283,12 @@ def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
         if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
             Psi_A[n] = Psi_interior[ID[n]]
 
-    plt.cla()
+    
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
     plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
     plt.scatter(473993, 171625,c='k',marker='*', label='UoR')
     plt.title('finite element solver')
-    # plt.colorbar()
+    plt.colorbar()
     plt.axis('equal')
     plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'_.pdf')
     plt.show()
@@ -320,8 +321,10 @@ def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
     fig.colorbar(c1, ax=[ax[0], ax[1]])
     plt.show()
 
-# solver()
-# solver(map='las',res='40')
-solver(u=0,D=1)
-solver(u=1,D=0)
-print('done')
+solver()
+plt.cla()
+solver(map='las',res='40')
+# plt.cla()
+# solver(u=0,D=1)
+# plt.cla()
+# solver(u=1,D=0)
