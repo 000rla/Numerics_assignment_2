@@ -3,12 +3,34 @@ import numpy as np
 from scipy import sparse as sp
 
 def shape_functions(xi):
+    """Finds the shape functions of the reference triangle.
+
+    Args:
+        xi (array_like): list or array of lenght 2. Reference coordinates.
+
+    Returns:
+        NumPy array: Shape function at xi
+    """
     return np.array([1-xi[0]-xi[1], xi[0], xi[1]])
 
 def div_xi_shape_functions():
+    """Finds the derivative of the shape function with respect to reference xi.
+
+    Returns:
+        NumPy array: Derivative of the shape function at reference xi.
+    """
     return np.array([[-1,1,0],[-1,0,1]])
 
 def global_x(xi,nodal_x):
+    """Translates local coordinates and reference xi to the global coordinates.
+
+    Args:
+        xi (array_like): list or array of lenght 2. Reference coordinates. 
+        nodal_x (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array: Global coordinates
+    """
     x=np.zeros(2)
     N=shape_functions(xi)
     for i in range(2):
@@ -17,6 +39,14 @@ def global_x(xi,nodal_x):
     return x
 
 def jacobian(nodal_x):
+    """Finds the Jacobian at given local coordinates
+
+    Args:
+        nodal_x (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array with size (2,2): The Jacobian at the local coordinates
+    """
     J=np.zeros([2,2])
     for a in range(2): #x or y
         for b in range(2): #xi 1 or 2
@@ -25,14 +55,39 @@ def jacobian(nodal_x):
     return J 
 
 def div_x_shape_functions(x):
+    """Calculates the derivative of the shape function with respect to local coordicates
+
+    Args:
+        x (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array with size (2,3): derivative of the shape function with respect to local coordicates
+    """
     dNxi=div_xi_shape_functions()
     J_inv=np.linalg.inv(jacobian(x))
     return J_inv.T@dNxi
 
 def det_J(J):
+    """Finds the determinate of a given (2,2) matrix 
+
+    Args:
+        J (array_like): list or array with size (2,2)
+
+    Returns:
+        float: the determinate of the (2,2) matrix 
+    """
+    
     return J[0,0]*J[1,1]-J[0,1]*J[1,0]
 
 def integrate_psi(psi):
+    """Finds the integral of a function over an element
+
+    Args:
+        psi (function): a function that can be integrated over an element
+
+    Returns:
+        float: integral of psi
+    """
     inte_psi=0
     xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
     for j in range(3):
@@ -40,12 +95,29 @@ def integrate_psi(psi):
     return inte_psi
 
 def integrate_phi(phi,x_nodal):
-    xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
+    """Finds the integral of a function over the refrence triangle
+
+    Args:
+        phi (function): function defined over the reference triangle
+        x_nodal (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        float: integral of phi
+    """
+    
     detJ=abs(det_J(jacobian(x_nodal)))
     integrand = lambda xi: detJ*phi(global_x(xi,x_nodal))
     return integrate_psi(integrand)
 
-def stiffness_2d(nodes):
+def stiffness_diffusion(nodes):
+    """finds the diffusion stiffness matrix element
+
+    Args:
+        nodes (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array with size (3,3): A matrix for calculating an element of the diffusion stiffness matrix
+    """
     div = div_x_shape_functions(nodes)
     k=np.zeros([3,3])
     for i in range(3):
@@ -55,6 +127,14 @@ def stiffness_2d(nodes):
     return k
 
 def stiffness_advection(nodes):
+    """finds the advection stiffness matrix element
+
+    Args:
+        nodes (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array with size (3,3): A matrix for calculating an element of the advection stiffness matrix
+    """
     div = div_x_shape_functions(nodes)
     k = np.zeros([3,3])
     for i in range(3):
@@ -64,10 +144,16 @@ def stiffness_advection(nodes):
 
     return k
 
-def stiffness(nodes, D, u):
-    return D*stiffness_2d(nodes) - u*stiffness_advection(nodes)
-
 def force_2d(nodes,S):
+    """finds the force vector
+
+    Args:
+        nodes (array_like): list or array with size (2,3). Local coordinates
+        S (function): source function
+
+    Returns:
+        NumPy array with lenght 3: vector for finding the force vector
+    """
     xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
     detJ=abs(det_J(jacobian(nodes)))
     f = np.zeros(3)
@@ -77,6 +163,17 @@ def force_2d(nodes,S):
     return f
 
 def generate_2d_grid(Nx):
+    """generates a 2D regular grid that can be used to solve equations on
+
+    Args:
+        Nx (int): the number of grid spaces
+
+    Returns:
+        nodes (NumPy array): local coordiantes 
+        IEN (NumPy array): mapping between elements and nodes
+        ID (NumPy array): mapping  between elements and equations
+        boundaries (Numpy array):  set of nodes that are on the grid boundary
+    """
     Nnodes = Nx+1
     x = np.linspace(0, 1, Nnodes)
     y = np.linspace(0, 1, Nnodes)
@@ -108,11 +205,32 @@ def generate_2d_grid(Nx):
     return nodes, IEN, ID, boundaries
 
 def source_function(x):
+    """Generates Gaussian source function
+
+    Args:
+        x (array_like): list or array with lenght 2. Global coordinates
+
+    Returns:
+        float: value of Gaussian at x
+    """
     mean=[442365, 115483] #UoS coords
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
 def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
+    """finds the finite elements solution.
+
+    Args:
+        S (function, optional): Source function for the pollutant. Defaults to source_function.
+        D (int, optional): Diffusion coefficent. Defaults to 1.
+        u (int, optional): Wind speed. Defaults to 1E-10.
+        map (str, optional): Chooses which map to solve over. Choose between 'esw' and 'lan'. Defaults to 'esw'.
+        res (str, optional): Chooses resolution to solve over. Defaults to '100'.
+            Choose between '6_25', '12_5', '25', '50' or '100' for map = 'ews' or '1_25', '2_5', '5', '10', '20', '40' for map = 'las'.  
+
+    Returns:
+        NumPy array: finite elements solution
+    """
     #loading data    
     nodes = np.loadtxt('data/'+map+'_nodes_'+res+'k.txt')
     
@@ -146,7 +264,7 @@ def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
     F = np.zeros((N_equations,))
     # Loop over elements
     for e in range(N_elements):
-        k_e = stiffness(nodes[:,IEN[e,:]])
+        k_e = D*stiffness_diffusion(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
         f_e = force_2d(nodes[:,IEN[e,:]], S)
         for a in range(3):
             A = LM[a, e]
@@ -179,6 +297,14 @@ def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
     return Psi_A
 
 def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
+    """_summary_
+
+    Args:
+        IEN (NumPy array): mapping between elements and nodes
+        Psi_A (NumPy array): finite elements solution
+        psi_analytical (array like): analytical solution
+        nodes (array like): local coordinates
+    """
     z=psi_analytical(nodes)
     vmin = min(np.min(Psi_A), np.min(z))
     vmax = max(np.max(Psi_A), np.max(z))
@@ -194,8 +320,8 @@ def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
     fig.colorbar(c1, ax=[ax[0], ax[1]])
     plt.show()
 
-solver()
-solver(map='las',res='40')
+# solver()
+# solver(map='las',res='40')
 solver(u=0,D=1)
 solver(u=1,D=0)
 print('done')
