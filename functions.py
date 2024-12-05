@@ -289,7 +289,7 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
     plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
     plt.scatter(473993, 171625,c='k',marker='*', label='UoR')
-    plt.plot(nodes[0,tri],nodes[1,tri])
+    plt.scatter(nodes[0,tri],nodes[1,tri])
     plt.title('finite element solver')
     plt.colorbar()
     plt.axis('equal')
@@ -339,12 +339,19 @@ def in_tri(tri,node):
         return False
 
 def which_triangle(nodes,IEN):
+    from heapq import nsmallest
+    b=[]
     N_elements = IEN.shape[0]
+    print(IEN.shape)
     reading=[473993, 171625]
+    for i in range(len(nodes[0,:])):
+        b.append(((nodes[0,i]-reading[0])**2+(nodes[1,i]-reading[1])**2)**.5)
     for e in range(N_elements):
         tf = in_tri((nodes[:,IEN[e,:]]),reading)
         if tf:
             return IEN[e,:]
+    b=np.array(b)
+    return np.argsort(b)[:3]
 
 solver()
 plt.cla()
