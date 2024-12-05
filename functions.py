@@ -283,10 +283,12 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
         if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
             Psi_A[n] = Psi_interior[ID[n]]
 
-    
+    tri=which_triangle(nodes,IEN)
+
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
     plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
     plt.scatter(473993, 171625,c='k',marker='*', label='UoR')
+    plt.plot(nodes[0,tri],nodes[1,tri])
     plt.title('finite element solver')
     plt.colorbar()
     plt.axis('equal')
@@ -320,6 +322,28 @@ def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
 
     fig.colorbar(c1, ax=[ax[0], ax[1]])
     plt.show()
+
+def triangle_area(p0,p1,p2):
+    return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
+
+def in_tri(tri,node):
+    Area = triangle_area(tri[:,0],tri[:,1],tri[:,2])
+    area1 = triangle_area(tri[:,0],tri[:,1],node)
+    area2 = triangle_area(tri[:,0],tri[:,2],node)
+    area3 = triangle_area(tri[:,2],tri[:,1],node)
+
+    if Area==area1+area2+area3:
+        return True
+    else:
+        return False
+
+def which_triangle(nodes,IEN):
+    N_elements = IEN.shape[0]
+    reading=[473993, 171625]
+    for e in range(N_elements):
+        tf = in_tri((nodes[:,IEN[e,:]]),reading)
+        if tf:
+            return IEN[e,:]
 
 solver()
 plt.cla()
