@@ -284,6 +284,7 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
             Psi_A[n] = Psi_interior[ID[n]]
 
     tri=which_triangle(nodes,IEN)
+    print(tri)
 
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
     plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
