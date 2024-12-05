@@ -59,10 +59,13 @@ def stiffness_advection(nodes):
     k = np.zeros([3,3])
     for i in range(3):
         for j in range(3):
-            psi=lambda xi: abs(det_J(jacobian(nodes)))*div[1,i]*shape_functions(xi)[j]
+            psi=lambda xi: (det_J(jacobian(nodes)))*div[1,i]*shape_functions(xi)[j]
             k[i,j] += integrate_psi(psi)
 
     return k
+
+def stiffness(nodes, D, u):
+    return D*stiffness_2d(nodes) - u*stiffness_advection(nodes)
 
 def force_2d(nodes,S):
     xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
@@ -143,7 +146,7 @@ def solver(S=source_function,D=1,u=1E-10,map='esw',res='100'):
     F = np.zeros((N_equations,))
     # Loop over elements
     for e in range(N_elements):
-        k_e = D*stiffness_2d(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
+        k_e = stiffness(nodes[:,IEN[e,:]])
         f_e = force_2d(nodes[:,IEN[e,:]], S)
         for a in range(3):
             A = LM[a, e]
@@ -195,3 +198,4 @@ solver()
 solver(map='las',res='40')
 solver(u=0,D=1)
 solver(u=1,D=0)
+print('done')
