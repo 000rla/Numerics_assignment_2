@@ -284,12 +284,14 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
             Psi_A[n] = Psi_interior[ID[n]]
 
     tri=which_triangle(nodes,IEN)
-    print(tri)
+    IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
+    # print(nodes[:,IEN[IEN_tri_index]])
 
     plt.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN)
-    plt.scatter(442365, 115483,c='k',marker='*',label='UoS')
-    plt.scatter(473993, 171625,c='k',marker='*', label='UoR')
-    plt.scatter(nodes[0,tri],nodes[1,tri])
+    plt.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
+    plt.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
+    plt.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
+    plt.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
     plt.title('finite element solver')
     plt.colorbar()
     plt.axis('equal')
@@ -298,7 +300,10 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
 
     #plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes)
 
-    return Psi_A
+    Psi_UoR=Psi_A[IEN[IEN_tri_index]][0]
+    final_ans=sum(Psi_UoR)/3
+
+    return final_ans#_A#[IEN[IEN_tri_index]]
 
 def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
     """_summary_
@@ -339,10 +344,8 @@ def in_tri(tri,node):
         return False
 
 def which_triangle(nodes,IEN):
-    from heapq import nsmallest
     b=[]
     N_elements = IEN.shape[0]
-    print(IEN.shape)
     reading=[473993, 171625]
     for i in range(len(nodes[0,:])):
         b.append(((nodes[0,i]-reading[0])**2+(nodes[1,i]-reading[1])**2)**.5)
@@ -353,10 +356,18 @@ def which_triangle(nodes,IEN):
     b=np.array(b)
     return np.argsort(b)[:3]
 
-solver()
-plt.cla()
-solver(map='las',res='40')
+#'1_25', '2_5', '5', '10', '20', '40' for map = 'las'.
+# solver()
 # plt.cla()
-# solver(u=0,D=1)
+# solver(map='las',res='40')
 # plt.cla()
-# solver(u=1,D=0)
+psi=solver(map='las',res='20')
+print(psi)
+# plt.cla()
+# solver(map='las',res='10')
+# plt.cla()
+# solver(map='las',res='5')
+# plt.cla()
+# solver(map='las',res='2_5')
+# plt.cla()
+# solver(map='las',res='1_25')
