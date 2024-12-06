@@ -177,48 +177,6 @@ def curlyF(nodes,F,K,Psi,a,b):
     M=mass_matrix(nodes)
     return np.linalg.inv(M)[a,b]*(F[b]-K[a,b]*Psi[a])
 
-def generate_2d_grid(Nx):
-    """generates a 2D regular grid that can be used to solve equations on
-
-    Args:
-        Nx (int): the number of grid spaces
-
-    Returns:
-        nodes (NumPy array): local coordiantes 
-        IEN (NumPy array): mapping between elements and nodes
-        ID (NumPy array): mapping  between elements and equations
-        boundaries (Numpy array):  set of nodes that are on the grid boundary
-    """
-    Nnodes = Nx+1
-    x = np.linspace(0, 1, Nnodes)
-    y = np.linspace(0, 1, Nnodes)
-    X, Y = np.meshgrid(x,y)
-    nodes = np.zeros((Nnodes**2,2))
-    nodes[:,0] = X.ravel()
-    nodes[:,1] = Y.ravel()
-    ID = np.zeros(len(nodes), dtype=np.int64)
-    boundaries = dict() # Will hold the boundary values
-    n_eq = 0
-    for nID in range(len(nodes)):
-        if np.allclose(nodes[nID, 0], 0):
-            ID[nID] = -1
-            boundaries[nID] = 0 # Dirichlet BC
-        else:
-            ID[nID] = n_eq
-            n_eq += 1
-            if ( (np.allclose(nodes[nID, 1], 0)) or (np.allclose(nodes[nID, 0], 1)) or (np.allclose(nodes[nID, 1], 1)) ):
-                boundaries[nID] = 0 # Neumann BC
-    IEN = np.zeros((2*Nx**2, 3), dtype=np.int64)
-    for i in range(Nx):
-        for j in range(Nx):
-            IEN[2*i+2*j*Nx , :] = (i+j*Nnodes,
-                                    i+1+j*Nnodes,
-                                    i+(j+1)*Nnodes)
-            IEN[2*i+1+2*j*Nx, :] = (i+1+j*Nnodes,
-                                    i+1+(j+1)*Nnodes,
-                                    i+(j+1)*Nnodes)
-    return nodes, IEN, ID, boundaries
-
 def source_function(x):
     """Generates Gaussian source function
 
@@ -232,7 +190,7 @@ def source_function(x):
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
-def solver(S=source_function,D=10000,u=10,map='esw',res='100'):
+def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1000):
     """finds the finite elements solution.
 
     Args:
@@ -268,36 +226,40 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100'):
     N_elements = IEN.shape[0]
     N_nodes = nodes.shape[0]
     nodes=nodes.T
-    
-    # Location matrix
-    LM = np.zeros_like(IEN.T)
-    for e in range(N_elements):
-        for a in range(3):
-            LM[a,e] = ID[IEN[e,a]]
-    # Global stiffness matrix and force vector
-    K = sp.lil_matrix((N_equations, N_equations))
-    F = np.zeros((N_equations,))
-    # Loop over elements
-    for e in range(N_elements):
-        k_e = D*stiffness_diffusion(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
-        f_e = force_2d(nodes[:,IEN[e,:]], S)
-        for a in range(3):
-            A = LM[a, e]
-            for b in range(3):
-                B = LM[b, e]
-                if (A >= 0) and (B >= 0):
-                    K[A, B] += k_e[a, b]
-            if (A >= 0):
-                F[A] += f_e[a]
-    # Solve
-    K=sp.csr_matrix(K)
-    Psi_interior = sp.linalg.spsolve(K, F)
-    Psi_A = np.zeros(N_nodes)
-    for n in range(N_nodes):
-        if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
-            Psi_A[n] = Psi_interior[ID[n]]
+    Psi=np.zeros([max_time,len(nodes[0])])
 
-    curlyF(nodes,F,K,Psi_A,0,0)
+    for t in range(max_time):
+        # Location matrix
+        LM = np.zeros_like(IEN.T)
+        for e in range(N_elements):
+            for a in range(3):
+                LM[a,e] = ID[IEN[e,a]]
+        # Global stiffness matrix and force vector
+        K = sp.lil_matrix((N_equations, N_equations))
+        F = np.zeros((N_equations,))
+        # Loop over elements
+        for e in range(N_elements):
+            k_e = D*stiffness_diffusion(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
+            f_e = force_2d(nodes[:,IEN[e,:]], S)
+            for a in range(3):
+                A = LM[a, e]
+                for b in range(3):
+                    B = LM[b, e]
+                    if (A >= 0) and (B >= 0):
+                        K[A, B] += k_e[a, b]
+                if (A >= 0):
+                    F[A] += f_e[a]
+        # Solve
+        K=sp.csr_matrix(K)
+        Psi_interior = sp.linalg.spsolve(K, F)
+        Psi_A = np.zeros(N_nodes)
+        for n in range(N_nodes):
+            if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
+                Psi_A[n] = Psi_interior[ID[n]]
+
+        Psi[t]=Psi_A
+
+        curlyF(nodes,F,K,Psi_A,0,0)
 
     tri=which_triangle(nodes,IEN)
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
