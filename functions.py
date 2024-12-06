@@ -140,7 +140,7 @@ def stiffness_advection(nodes):
     detJ=det_J(jacobian(nodes))
     for i in range(3):
         for j in range(3):
-            psi=lambda xi: detJ*shape_functions(xi)[i]*div[1,j]
+            psi=lambda xi: detJ*shape_functions(xi)[i]*div[1,j] + .5*detJ*shape_functions(xi)[i]*div[0,j]
             k[i,j] += integrate_psi(psi)
 
     return k
@@ -162,6 +162,20 @@ def force_2d(nodes,S):
         integrand = lambda xi: abs(detJ) * S(global_x(xi,nodes)) * shape_functions(xi)[b]
         f[b] = integrate_psi(integrand)
     return f
+
+def mass_matrix(nodes):
+    
+    detJ=det_J(jacobian(nodes))
+    M=np.zeros([3,3])
+    for i in range(3):
+        for j in range(3):
+            integrad=lambda xi: detJ*shape_functions(xi)[i]*shape_functions(xi)[j]
+            M[i,j]=integrate_psi(integrad)
+    return M
+
+def curlyF(nodes,F,K,Psi,a,b):
+    M=mass_matrix(nodes)
+    return np.linalg.inv(M)[a,b]*(F[b]-K[a,b]*Psi[a])
 
 def generate_2d_grid(Nx):
     """generates a 2D regular grid that can be used to solve equations on
@@ -218,7 +232,7 @@ def source_function(x):
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
-def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
+def solver(S=source_function,D=10000,u=10,map='esw',res='100'):
     """finds the finite elements solution.
 
     Args:
@@ -283,6 +297,8 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
         if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
             Psi_A[n] = Psi_interior[ID[n]]
 
+    curlyF(nodes,F,K,Psi_A,0,0)
+
     tri=which_triangle(nodes,IEN)
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
     # print(nodes[:,IEN[IEN_tri_index]])
@@ -305,30 +321,6 @@ def solver(S=source_function,D=1,u=1E-4,map='esw',res='100'):
     final_ans=sum(Psi_UoR)/3
 
     return final_ans#_A#[IEN[IEN_tri_index]]
-
-def plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes):
-    """_summary_
-
-    Args:
-        IEN (NumPy array): mapping between elements and nodes
-        Psi_A (NumPy array): finite elements solution
-        psi_analytical (array like): analytical solution
-        nodes (array like): local coordinates
-    """
-    z=psi_analytical(nodes)
-    vmin = min(np.min(Psi_A), np.min(z))
-    vmax = max(np.max(Psi_A), np.max(z))
-
-    fig, ax = plt.subplots(1, 2)
-    c1=ax[0].tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN,vmin=vmin,vmax=vmax)
-    ax[0].axis('equal')
-    ax[0].set_title('finite element solver')
-
-    c2=ax[1].tripcolor(nodes[0], nodes[1],z, triangles=IEN,vmin=vmin,vmax=vmax)
-    ax[1].set_title('analytical solution')
-
-    fig.colorbar(c1, ax=[ax[0], ax[1]])
-    plt.show()
 
 def triangle_area(p0,p1,p2):
     return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
@@ -360,15 +352,9 @@ def which_triangle(nodes,IEN):
 #'1_25', '2_5', '5', '10', '20', '40' for map = 'las'.
 # solver()
 # plt.cla()
-solver(map='las',res='40')
-plt.cla()
-psi=solver(map='las',res='20')
-print(psi)
-# plt.cla()
+# solver(map='las',res='40')
+# solver(map='las',res='20')
 # solver(map='las',res='10')
-# plt.cla()
-# solver(map='las',res='5')
-# plt.cla()
+solver(map='las',res='5')
 # solver(map='las',res='2_5')
-# plt.cla()
 # solver(map='las',res='1_25')
