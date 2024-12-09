@@ -190,7 +190,7 @@ def source_function(x):
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
-def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1000):
+def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     """finds the finite elements solution.
 
     Args:
@@ -228,29 +228,32 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1000):
     nodes=nodes.T
     Psi=np.zeros([max_time,len(nodes[0])])
 
+    # Location matrix
+    LM = np.zeros_like(IEN.T)
+    for e in range(N_elements):
+        for a in range(3):
+            LM[a,e] = ID[IEN[e,a]]
+    K = sp.lil_matrix((N_equations, N_equations))
+    for e in range(N_elements):
+        k_e = D*stiffness_diffusion(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
+        for a in range(3):
+            A = LM[a, e]
+            for b in range(3):
+                B = LM[b, e]
+                if (A >= 0) and (B >= 0):
+                    K[A, B] += k_e[a, b]
+    K=sp.csr_matrix(K)
+
     for t in range(max_time):
-        # Location matrix
-        LM = np.zeros_like(IEN.T)
-        for e in range(N_elements):
-            for a in range(3):
-                LM[a,e] = ID[IEN[e,a]]
-        # Global stiffness matrix and force vector
-        K = sp.lil_matrix((N_equations, N_equations))
         F = np.zeros((N_equations,))
         # Loop over elements
         for e in range(N_elements):
-            k_e = D*stiffness_diffusion(nodes[:,IEN[e,:]]) - u*stiffness_advection(nodes[:,IEN[e,:]])
             f_e = force_2d(nodes[:,IEN[e,:]], S)
             for a in range(3):
                 A = LM[a, e]
-                for b in range(3):
-                    B = LM[b, e]
-                    if (A >= 0) and (B >= 0):
-                        K[A, B] += k_e[a, b]
                 if (A >= 0):
                     F[A] += f_e[a]
         # Solve
-        K=sp.csr_matrix(K)
         Psi_interior = sp.linalg.spsolve(K, F)
         Psi_A = np.zeros(N_nodes)
         for n in range(N_nodes):
@@ -259,7 +262,7 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1000):
 
         Psi[t]=Psi_A
 
-        curlyF(nodes,F,K,Psi_A,0,0)
+        F_a=curlyF(nodes,F,K,Psi_A,0,0)
 
     tri=which_triangle(nodes,IEN)
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
@@ -277,12 +280,10 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1000):
     plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'_.pdf')
     plt.show()
 
-    #plot_solution_and_analytical(IEN, Psi_A, psi_analytical, nodes)
-
     Psi_UoR=Psi_A[IEN[IEN_tri_index]][0]
     final_ans=sum(Psi_UoR)/3
 
-    return final_ans#_A#[IEN[IEN_tri_index]]
+    return final_ans
 
 def triangle_area(p0,p1,p2):
     return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
@@ -317,6 +318,7 @@ def which_triangle(nodes,IEN):
 # solver(map='las',res='40')
 # solver(map='las',res='20')
 # solver(map='las',res='10')
-solver(map='las',res='5')
+psi=solver(map='las',res='5')
+print(psi)
 # solver(map='las',res='2_5')
 # solver(map='las',res='1_25')
