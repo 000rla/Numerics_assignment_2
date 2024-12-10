@@ -268,17 +268,17 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
     # print(nodes[:,IEN[IEN_tri_index]])
 
-    # fig,ax=plt.subplots()
-    # pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
-    # ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
-    # ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
-    # ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
-    # ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
-    # plt.title('finite element solver')
-    # cbar = plt.colorbar(pc, ax=ax)
-    # plt.axis('equal')
-    # plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'_.pdf')
-    # plt.show()
+    fig,ax=plt.subplots()
+    pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
+    ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
+    ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
+    ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
+    ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
+    plt.title('finite element solver')
+    cbar = plt.colorbar(pc, ax=ax)
+    plt.axis('equal')
+    plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
+    plt.show()
 
     print(IEN[IEN_tri_index])
     print(Psi_A[IEN[IEN_tri_index]])
@@ -289,31 +289,35 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     return final_ans
 
 def triangle_area(p0,p1,p2):
-    return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
+    #return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
+    x1, y1 = p0
+    x2, y2 = p1
+    x3, y3 = p2
+    
+    return 0.5 * abs(x1*y2 + x2*y3 + x3*y1 - (y1*x2 + y2*x3 + y3*x1))
 
 def in_tri(tri,node):
-    Area = triangle_area(tri[:,0],tri[:,1],tri[:,2])
-    area1 = triangle_area(tri[:,0],tri[:,1],node)
-    area2 = triangle_area(tri[:,0],tri[:,2],node)
-    area3 = triangle_area(tri[:,2],tri[:,1],node)
+    p0, p1, p2 = tri.T
+    
+    Area = triangle_area(p0, p1, p2)
+    area1 = triangle_area(p0, p1, node)
+    area2 = triangle_area(p0, p2, node)
+    area3 = triangle_area(p1, p2, node)
 
-    if Area==area1+area2+area3:
-        return True
-    else:
-        return False
+    # return Area==area1+area2+area3
+    epsilon = 10
+    return abs(Area - (area1 + area2 + area3)) < epsilon
+
 
 def which_triangle(nodes,IEN):
-    b=[]
     N_elements = IEN.shape[0]
     reading=[473993, 171625]
-    for i in range(len(nodes[0,:])):
-        b.append(((nodes[0,i]-reading[0])**2+(nodes[1,i]-reading[1])**2)**.5)
     for e in range(N_elements):
         tf = in_tri((nodes[:,IEN[e,:]]),reading)
         if tf:
+            print('it worked!')
             return IEN[e,:]
-    b=np.array(b)
-    return np.argsort(b)[:3]
+    print('nope')
 
 def l2_error(aim,pred):
         """Finds the l^2 error
@@ -325,15 +329,16 @@ def l2_error(aim,pred):
         Returns:
             l2_error: int
         """
-        return np.sqrt(sum((pred-aim)**2))/np.sqrt(sum(aim**2))
+        return np.sqrt(((pred-aim)**2))/np.sqrt((aim**2))
 
 
 def error():
     E=np.zeros(5)
     true_psi=solver(map='las',res='1_25')
-    reses=[2_5, 5, 10, 20, 40]
-    for i,v in enumerate(reses):
-        psi=solver(map='las',res=str(v))
+    reses=[2.5, 5, 10, 20, 40]
+    reses_str=['2_5', '5', '10', '20', '40']
+    for i,v in enumerate(reses_str):
+        psi=solver(map='las',res=v)
         E[i]=l2_error(true_psi,psi)
 
     plt.plot(reses,E)
