@@ -268,20 +268,17 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
     # print(nodes[:,IEN[IEN_tri_index]])
 
-    fig,ax=plt.subplots()
-    pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
-    ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
-    ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
-    ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
-    ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
-    plt.title('finite element solver')
-    cbar = plt.colorbar(pc, ax=ax)
-    plt.axis('equal')
-    plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
-    plt.show()
-
-    print(IEN[IEN_tri_index])
-    print(Psi_A[IEN[IEN_tri_index]])
+    # fig,ax=plt.subplots()
+    # pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
+    # ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
+    # ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
+    # ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
+    # ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
+    # plt.title('finite element solver')
+    # cbar = plt.colorbar(pc, ax=ax)
+    # plt.axis('equal')
+    # plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
+    # plt.show()
 
     Psi_UoR=Psi_A[IEN[IEN_tri_index]][0]
     final_ans=sum(Psi_UoR)/3
@@ -308,16 +305,13 @@ def in_tri(tri,node):
     epsilon = 10
     return abs(Area - (area1 + area2 + area3)) < epsilon
 
-
 def which_triangle(nodes,IEN):
     N_elements = IEN.shape[0]
     reading=[473993, 171625]
     for e in range(N_elements):
         tf = in_tri((nodes[:,IEN[e,:]]),reading)
         if tf:
-            print('it worked!')
             return IEN[e,:]
-    print('nope')
 
 def l2_error(aim,pred):
         """Finds the l^2 error
@@ -341,7 +335,17 @@ def error():
         psi=solver(map='las',res=v)
         E[i]=l2_error(true_psi,psi)
 
-    plt.plot(reses,E)
+    plt.loglog(reses,E,'bo')
+
+    m,c=np.polyfit(np.log(reses),np.log(E),1)
+    x=np.linspace(2.5,40)
+    y=m*x*10E-3
+    plt.loglog(x,y,label='line of best fit, m = '+str(round(m,3)))
+
+    plt.legend()
+    plt.grid('both')
+    plt.title('Convergence of error')
+    plt.savefig('error.pdf')
     return E
 
 #'1_25', '2_5', '5', '10', '20', '40' for map = 'las'.
