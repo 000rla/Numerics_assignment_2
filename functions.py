@@ -230,6 +230,11 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
     nodes=nodes.T
     Psi=np.zeros([Nt,len(nodes[0])])
 
+    fig,ax=plt.subplots()
+    plt.triplot(nodes[0],nodes[1],triangles=IEN)
+    plt.title(res+'km resolution grid')
+    plt.savefig('grid_'+res+'.pdf')
+
     # Location matrix
     LM = np.zeros_like(IEN.T)
     for e in range(N_elements):
@@ -263,7 +268,7 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
                 Psi_A[n] = Psi_interior[ID[n]]
 
         #normalising
-        Psi_A/=max(Psi_A)
+        Psi_A=(Psi_A-min(Psi_A))/(max(Psi_A)-min(Psi_A))
 
         #saving Psi_A at time t
         Psi[t]=Psi_A
@@ -272,24 +277,28 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
         # F_a=curlyF(nodes,F,K,Psi_A)
         # Psi[t+1]=Psi[t]+dt*F_a
 
-    tri=which_triangle(nodes,IEN)
-    IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
-
     if plotting:
         fig,ax=plt.subplots()
         pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
-        ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=5)
-        ax.scatter(473993, 171625,c='r',marker='.', label='UoR',edgecolors='none',s=5)
-        ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
+        ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none')
+        ax.scatter(473993, 171625,c='r',marker='.', label='UoR',edgecolors='none')
+        # ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=)
         plt.title('finite element solver')
         cbar = plt.colorbar(pc, ax=ax)
         plt.axis('equal')
         plt.legend(loc='upper right')
-        plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
+        plt.savefig('u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
         plt.show()
 
+    tri=which_triangle(nodes,IEN)
+    IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
     Psi_UoR=Psi[:,IEN[IEN_tri_index]][:,0,:]
-    final_ans=np.sum(Psi_UoR,axis=1)/3
+    reading=[473993, 171625]
+    dists=np.zeros(3)
+    dists[0]=((reading[0]-nodes[0,IEN[IEN_tri_index][0][0]])**2+(reading[1]-nodes[1,IEN[IEN_tri_index][0][0]])**2)**.5
+    dists[1]=((reading[0]-nodes[0,IEN[IEN_tri_index][0][1]])**2+(reading[1]-nodes[1,IEN[IEN_tri_index][0][1]])**2)**.5
+    dists[2]=((reading[0]-nodes[0,IEN[IEN_tri_index][0][2]])**2+(reading[1]-nodes[1,IEN[IEN_tri_index][0][2]])**2)**.5
+    final_ans=np.average(Psi_UoR,axis=1,weights=dists)
 
     if error_calc:
         return final_ans[0], N_equations
@@ -355,20 +364,14 @@ def error(plotting=False):
     m,c=np.polyfit(np.log(Ns[:]),np.log(E[:]),1)
     x=np.linspace(min(Ns),max(Ns))
     y=np.exp(c)*x**m 
+
     plt.loglog(x,y,'r-',label='line of best fit, m = '+str(round(m,3)))
-    plt.loglog(x,np.exp(c+1.1)*x**-1,'g',label='m = 1')
+    plt.loglog(x,np.exp(c+1.1)*x**-1,'g',label='m = -1')
 
     plt.legend()
+    plt.xlabel('Degrees of freedom')
+    plt.ylabel('$l^2$-error')
     plt.grid('both')
     plt.title('Convergence of error')
     plt.savefig('error.pdf')
     return E
-
-# solver(map='las',res='40')
-# solver(map='las',res='20')
-# solver(map='las',res='10')
-# psi=solver(map='las',res='5')
-# print(psi)
-# solver(map='las',res='2_5')
-# solver(map='las',res='1_25')
-error(plotting=False)
