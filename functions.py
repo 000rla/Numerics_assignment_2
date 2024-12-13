@@ -145,7 +145,7 @@ def stiffness_advection(nodes):
 
     return k
 
-def force_2d(nodes,S):
+def force_2d(nodes,S,t):
     """finds the force vector
 
     Args:
@@ -155,29 +155,29 @@ def force_2d(nodes,S):
     Returns:
         NumPy array with lenght 3: vector for finding the force vector
     """
-    xi=np.array([[1/6,4/6,1/6],[1/6,1/6,4/6]])
     detJ=abs(det_J(jacobian(nodes)))
     f = np.zeros(3)
     for b in range(3):
-        integrand = lambda xi: abs(detJ) * S(global_x(xi,nodes)) * shape_functions(xi)[b]
+        integrand = lambda xi: abs(detJ) * S(global_x(xi,nodes),t) * shape_functions(xi)[b]
         f[b] = integrate_psi(integrand)
     return f
 
 def mass_matrix(nodes):
     
     detJ=det_J(jacobian(nodes))
-    M=np.zeros([3,3])
+    M=sp.lil_matrix([3,3])
+    print(M)
     for i in range(3):
         for j in range(3):
             integrad=lambda xi: detJ*shape_functions(xi)[i]*shape_functions(xi)[j]
             M[i,j]=integrate_psi(integrad)
-    return M
+    return sp.csr_matrix(M)
 
-def curlyF(nodes,F,K,Psi,a,b):
+def curlyF(nodes,F,K,Psi):
     M=mass_matrix(nodes)
-    return np.linalg.inv(M)[a,b]*(F[b]-K[a,b]*Psi[a])
+    return np.linalg.inv(M)*(F-K*Psi)
 
-def source_function(x):
+def source_function(x,t):
     """Generates Gaussian source function
 
     Args:
@@ -190,7 +190,7 @@ def source_function(x):
     std=1000
     return np.exp((-1/(2*std**2))*((.5*(x[0]-mean[0])**2+.5*(x[1]-mean[1])**2)))
 
-def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
+def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,error_calc=False,plotting=False):
     """finds the finite elements solution.
 
     Args:
@@ -204,6 +204,8 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     Returns:
         NumPy array: finite elements solution
     """
+    Nt=int(max_time/dt)
+
     #loading data    
     nodes = np.loadtxt('data/'+map+'_nodes_'+res+'k.txt')
     
@@ -226,7 +228,7 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
     N_elements = IEN.shape[0]
     N_nodes = nodes.shape[0]
     nodes=nodes.T
-    Psi=np.zeros([max_time,len(nodes[0])])
+    Psi=np.zeros([Nt,len(nodes[0])])
 
     # Location matrix
     LM = np.zeros_like(IEN.T)
@@ -244,11 +246,11 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
                     K[A, B] += k_e[a, b]
     K=sp.csr_matrix(K)
 
-    for t in range(max_time):
+    for t in range(Nt):
         F = np.zeros((N_equations,))
         # Loop over elements
         for e in range(N_elements):
-            f_e = force_2d(nodes[:,IEN[e,:]], S)
+            f_e = force_2d(nodes[:,IEN[e,:]], S,dt*t)
             for a in range(3):
                 A = LM[a, e]
                 if (A >= 0):
@@ -259,31 +261,36 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=2):
         for n in range(N_nodes):
             if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
                 Psi_A[n] = Psi_interior[ID[n]]
-
+        Psi_A/=max(Psi_A)
         Psi[t]=Psi_A
 
-        F_a=curlyF(nodes,F,K,Psi_A,0,0)
+        # F_a=curlyF(nodes,F,K,Psi_A)
+
+        # Psi[t+1]=Psi[t]+dt*F_a
 
     tri=which_triangle(nodes,IEN)
     IEN_tri_index=np.where(np.all(np.sort(IEN,axis=1) == np.sort(tri), axis=1))[0]
-    # print(nodes[:,IEN[IEN_tri_index]])
 
-    # fig,ax=plt.subplots()
-    # pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
-    # ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
-    # ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
-    # ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
-    # ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
-    # plt.title('finite element solver')
-    # cbar = plt.colorbar(pc, ax=ax)
-    # plt.axis('equal')
-    # plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
-    # plt.show()
+    if plotting:
+        fig,ax=plt.subplots()
+        pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
+        ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
+        ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
+        ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
+        ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
+        plt.title('finite element solver')
+        cbar = plt.colorbar(pc, ax=ax)
+        plt.axis('equal')
+        plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
+        plt.show()
 
-    Psi_UoR=Psi_A[IEN[IEN_tri_index]][0]
-    final_ans=sum(Psi_UoR)/3
+    Psi_UoR=Psi[:,IEN[IEN_tri_index]][:,0,:]
+    final_ans=np.sum(Psi_UoR,axis=1)/3
 
-    return final_ans
+    if error_calc:
+        return final_ans[0], N_equations
+    else:
+        return final_ans[0]
 
 def triangle_area(p0,p1,p2):
     #return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
@@ -323,34 +330,35 @@ def l2_error(aim,pred):
         Returns:
             l2_error: int
         """
-        return np.sqrt(((pred-aim)**2))/np.sqrt((aim**2))
-
+        return (((pred-aim)**2))**.5/((aim**2))**.5
 
 def error():
-    E=np.zeros(5)
+    
     true_psi=solver(map='las',res='1_25')
-    reses=[2.5, 5, 10, 20, 40]
+    # reses=[2.5, 5, 10, 20, 40]
     reses_str=['2_5', '5', '10', '20', '40']
+    E=np.zeros(len(reses_str))
+    Ns=[]
     for i,v in enumerate(reses_str):
-        psi=solver(map='las',res=v)
+        psi,N=solver(map='las',res=v,error_calc=True)
         E[i]=l2_error(true_psi,psi)
+        Ns.append(N)
 
-    plt.loglog(reses,E,'bo')
+    fig,ax=plt.subplots()
+    Ns=np.array(Ns)
+    plt.loglog(Ns,E,'bo')
 
-    m,c=np.polyfit(np.log(reses),np.log(E),1)
-    x=np.linspace(2.5,40)
-    y=m*x*10E-3
-    plt.loglog(x,y,label='line of best fit, m = '+str(round(m,3)))
+    m,c=np.polyfit(np.log(Ns[:-2]),np.log(E[:-2]),1)
+    x=Ns#np.linspace(min(Ns),max(Ns))
+    y=np.exp(m*x+c+500)
+    plt.loglog(x,y,'ro-',label='line of best fit, m = '+str(round(m,3)))
 
     plt.legend()
     plt.grid('both')
     plt.title('Convergence of error')
-    plt.savefig('error.pdf')
+    plt.savefig('error_test.pdf')
     return E
 
-#'1_25', '2_5', '5', '10', '20', '40' for map = 'las'.
-# solver()
-# plt.cla()
 # solver(map='las',res='40')
 # solver(map='las',res='20')
 # solver(map='las',res='10')
