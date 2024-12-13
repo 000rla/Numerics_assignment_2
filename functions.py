@@ -261,11 +261,15 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
         for n in range(N_nodes):
             if ID[n] >= 0: # Otherwise Psi should be zero, and we've initialized that already.
                 Psi_A[n] = Psi_interior[ID[n]]
+
+        #normalising
         Psi_A/=max(Psi_A)
+
+        #saving Psi_A at time t
         Psi[t]=Psi_A
 
+        #potential time dependence implementation
         # F_a=curlyF(nodes,F,K,Psi_A)
-
         # Psi[t+1]=Psi[t]+dt*F_a
 
     tri=which_triangle(nodes,IEN)
@@ -274,13 +278,13 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
     if plotting:
         fig,ax=plt.subplots()
         pc=ax.tripcolor(nodes[0], nodes[1],Psi_A, triangles=IEN, vmin=Psi_A.min(), vmax=Psi_A.max())
-        ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=1)
-        ax.scatter(473993, 171625,c='k',marker='.', label='UoR',edgecolors='none',s=1)
-        ax.scatter(nodes[0,tri],nodes[1,tri],marker='.',edgecolors='none',s=1)
+        ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none',s=5)
+        ax.scatter(473993, 171625,c='r',marker='.', label='UoR',edgecolors='none',s=5)
         ax.scatter(nodes[0,IEN[IEN_tri_index]],nodes[1,IEN[IEN_tri_index]],marker='.',edgecolors='none',s=1)
         plt.title('finite element solver')
         cbar = plt.colorbar(pc, ax=ax)
         plt.axis('equal')
+        plt.legend(loc='upper right')
         plt.savefig('test_u_'+str(u)+'_D_'+str(D)+'_'+map+'_'+res+'.pdf')
         plt.show()
 
@@ -332,31 +336,32 @@ def l2_error(aim,pred):
         """
         return (((pred-aim)**2))**.5/((aim**2))**.5
 
-def error():
+def error(plotting=False):
     
-    true_psi=solver(map='las',res='1_25')
+    true_psi=solver(map='las',res='1_25',plotting=plotting)
     # reses=[2.5, 5, 10, 20, 40]
     reses_str=['2_5', '5', '10', '20', '40']
     E=np.zeros(len(reses_str))
     Ns=[]
     for i,v in enumerate(reses_str):
-        psi,N=solver(map='las',res=v,error_calc=True)
+        psi,N=solver(map='las',res=v,error_calc=True,plotting=plotting)
         E[i]=l2_error(true_psi,psi)
         Ns.append(N)
 
     fig,ax=plt.subplots()
     Ns=np.array(Ns)
-    plt.loglog(Ns,E,'bo')
+    plt.loglog(Ns,E,'bo',label='$l^2$-error')
 
-    m,c=np.polyfit(np.log(Ns[:-2]),np.log(E[:-2]),1)
-    x=Ns#np.linspace(min(Ns),max(Ns))
-    y=np.exp(m*x+c+500)
-    plt.loglog(x,y,'ro-',label='line of best fit, m = '+str(round(m,3)))
+    m,c=np.polyfit(np.log(Ns[:]),np.log(E[:]),1)
+    x=np.linspace(min(Ns),max(Ns))
+    y=np.exp(c)*x**m 
+    plt.loglog(x,y,'r-',label='line of best fit, m = '+str(round(m,3)))
+    plt.loglog(x,np.exp(c+1.1)*x**-1,'g',label='m = 1')
 
     plt.legend()
     plt.grid('both')
     plt.title('Convergence of error')
-    plt.savefig('error_test.pdf')
+    plt.savefig('error.pdf')
     return E
 
 # solver(map='las',res='40')
@@ -366,4 +371,4 @@ def error():
 # print(psi)
 # solver(map='las',res='2_5')
 # solver(map='las',res='1_25')
-error()
+error(plotting=False)
