@@ -7,7 +7,7 @@ Orla O'Neill [email here](mailto:o.j.oneill@prg.reading.ac.uk)
 ## Dependencies
 * numpy (v1.26.4)
 * matplotlib (v3.8.0)
-* seaborn (v0.13.2)
+* scipy (v1.14.1)
 
 ## Files
 **exercises.ipynb**: Rough work for the assignment
