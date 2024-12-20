@@ -8,11 +8,12 @@ Orla O'Neill [email here](mailto:o.j.oneill@prg.reading.ac.uk)
 * numpy (v1.26.4)
 * matplotlib (v3.8.0)
 * seaborn (v0.13.2)
-* scipy (v1.11.4)
 
 ## Files
 **exercises.ipynb**: Rough work for the assignment
+
 **functions.py**: Contains the functions used to complete the assignment
+
 **run_me.py**: Run this file to obtain the results for the assignmet
 
 ## How to use
