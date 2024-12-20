@@ -163,7 +163,14 @@ def force_2d(nodes,S,t):
     return f
 
 def mass_matrix(nodes):
-    
+    """finds the mass matrix. Used for time dependance, since this was not fully developed, this function is unused
+
+    Args:
+        nodes (array_like): list or array with size (2,3). Local coordinates
+
+    Returns:
+        NumPy array: The mass matrix at the given nodes
+    """
     detJ=det_J(jacobian(nodes))
     M=sp.lil_matrix([3,3])
     print(M)
@@ -174,6 +181,17 @@ def mass_matrix(nodes):
     return sp.csr_matrix(M)
 
 def curlyF(nodes,F,K,Psi):
+    """Finds the time derivative of the shape function.
+
+    Args:
+        nodes (array_like): list or array with size (2,3). Local coordinates
+        F (array_like): force vector
+        K (array_like): stiffness matrix
+        Psi (array_like): concentration of the pollutant
+
+    Returns:
+        array_like: the time derivative of the shape function.
+    """
     M=mass_matrix(nodes)
     return np.linalg.inv(M)*(F-K*Psi)
 
@@ -232,6 +250,8 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
 
     fig,ax=plt.subplots()
     plt.triplot(nodes[0],nodes[1],triangles=IEN)
+    ax.scatter(442365, 115483,c='k',marker='.',label='UoS',edgecolors='none')
+    ax.scatter(473993, 171625,c='r',marker='.', label='UoR',edgecolors='none')
     plt.title(res+'km resolution grid')
     plt.savefig('grid_'+res+'.pdf')
 
@@ -306,7 +326,16 @@ def solver(S=source_function,D=10000,u=10,map='esw',res='100',max_time=1,dt=1,er
         return final_ans[0]
 
 def triangle_area(p0,p1,p2):
-    #return 0.5 * (p0[0] * (p1[1] - p2[1]) + p1[0] * (p2[1] - p0[1]) + p2[0] * (p0[1] - p1[1]))
+    """finds the area of a triangle made of the three input nodes
+
+    Args:
+        p0 (array_like): has lenght 2. first point on the triangle
+        p1 (array_like): has lenght 2. first point on the triangle
+        p2 (array_like): has lenght 2. first point on the triangle
+
+    Returns:
+        float: the area of the triangle
+    """
     x1, y1 = p0
     x2, y2 = p1
     x3, y3 = p2
@@ -314,6 +343,15 @@ def triangle_area(p0,p1,p2):
     return 0.5 * abs(x1*y2 + x2*y3 + x3*y1 - (y1*x2 + y2*x3 + y3*x1))
 
 def in_tri(tri,node):
+    """determines if a point is in a given triangel by checking triangle areas.
+
+    Args:
+        tri (array_like): has shape (3,2) The nodes that make up a triangle
+        node (array_like): has lenght 2. The node to check if it is in the triangle
+
+    Returns:
+        bool: True if the node is in the triangle, False otherwise.
+    """
     p0, p1, p2 = tri.T
     
     Area = triangle_area(p0, p1, p2)
@@ -321,11 +359,19 @@ def in_tri(tri,node):
     area2 = triangle_area(p0, p2, node)
     area3 = triangle_area(p1, p2, node)
 
-    # return Area==area1+area2+area3
-    epsilon = 10
+    epsilon = 10 # to allow for rounding errors in the calculation
     return abs(Area - (area1 + area2 + area3)) < epsilon
 
 def which_triangle(nodes,IEN):
+    """fins the triangle that contains Reading from the grid.
+
+    Args:
+        nodes (array_like): has shape (N,2) the nodes of the grid
+        IEN (array_like): has shape (M,3) gives the nodes in each triangle
+
+    Returns:
+        array_like with lenght: the node index for the triangle containing reading
+    """
     N_elements = IEN.shape[0]
     reading=[473993, 171625]
     for e in range(N_elements):
@@ -346,9 +392,15 @@ def l2_error(aim,pred):
         return (((pred-aim)**2))**.5/((aim**2))**.5
 
 def error(plotting=False):
-    
+    """finds and plots the l2 error for the experiment
+
+    Args:
+        plotting (bool, optional): If True, plots the solutions to Psi on each grid. Defaults to False.
+
+    Returns:
+        array_like: a list of errors for each resolution.
+    """
     true_psi=solver(map='las',res='1_25',plotting=plotting)
-    # reses=[2.5, 5, 10, 20, 40]
     reses_str=['2_5', '5', '10', '20', '40']
     E=np.zeros(len(reses_str))
     Ns=[]
